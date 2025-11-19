@@ -97,11 +97,15 @@ DELIVERY_COSTS = {
 
 GST_RATE = 0.18
 
-def parse_query_with_ai(query: str) -> Dict:
-    """Use Gemini AI to parse natural language query into structured data"""
+def parse_query_with_ai(query: str, context: Dict) -> Dict:
+    """Use Gemini AI to parse natural language query into structured data with conversation context"""
     
     if not model:
-        return parse_query_simple(query)
+        return parse_query_simple(query, context)
+    
+    # Include context in the prompt
+    context_str = "\n".join([f"    - {k}: {v}" for k, v in context.items() if v is not None])
+    context_info = f"\n\nPrevious conversation context (already known):\n{context_str}" if context_str else ""
     
     prompt = f"""Parse this herbal extract quotation request and extract the following information:
     - Product name (ashwagandha/boswellia/curcumin/neem/tulsi)
@@ -110,10 +114,11 @@ def parse_query_with_ai(query: str) -> Dict:
     - Grade (pharmaceutical/cosmetic/food)
     - Delivery city
 
-    Query: "{query}"
+    Query: "{query}"{context_info}
 
     Return ONLY a JSON object with keys: product, specification, quantity, grade, city
-    If any field is missing, set it as null.
+    Use values from the previous context if the query doesn't provide new information for those fields.
+    If any field is missing or unknown, set it as null.
     Do not include any explanatory text, only the JSON.
     """
     
@@ -124,25 +129,26 @@ def parse_query_with_ai(query: str) -> Dict:
         # Try to extract JSON from response
         json_match = re.search(r'\{.*\}', result, re.DOTALL)
         if json_match:
-            return json.loads(json_match.group())
+            parsed = json.loads(json_match.group())
+            # Merge with context - new values override old ones
+            merged = context.copy()
+            for key, value in parsed.items():
+                if value is not None:
+                    merged[key] = value
+            return merged
     except Exception as e:
         # Silently fall back to regex parser - no need to show error
         pass
     
     # Fallback to simple regex parsing
-    return parse_query_simple(query)
+    return parse_query_simple(query, context)
 
-def parse_query_simple(query: str) -> Dict:
-    """Fallback simple parser using regex"""
+def parse_query_simple(query: str, context: Dict) -> Dict:
+    """Fallback simple parser using regex with conversation context"""
     query_lower = query.lower()
     
-    result = {
-        "product": None,
-        "specification": None,
-        "quantity": None,
-        "grade": None,
-        "city": None
-    }
+    # Start with existing context
+    result = context.copy()
     
     # Find product
     for product_key in PRODUCTS:
@@ -150,15 +156,21 @@ def parse_query_simple(query: str) -> Dict:
             result["product"] = product_key
             break
     
-    # Find quantity (number followed by kg)
+    # Find quantity (number followed by kg or just a number if we have context)
     qty_match = re.search(r'(\d+)\s*kg', query_lower)
     if qty_match:
         result["quantity"] = int(qty_match.group(1))
+    elif result.get("product") and re.match(r'^\d+$', query.strip()):
+        # Just a number, assume it's quantity if we have a product in context
+        result["quantity"] = int(query.strip())
     
     # Find specification (percentage)
     spec_match = re.findall(r'(\d+(?:\.\d+)?)\s*%', query_lower)
     if spec_match:
         result["specification"] = f"{spec_match[0]}%"
+    elif result.get("product") and re.match(r'^\d+(?:\.\d+)?$', query.strip()):
+        # Just a number without %, assume it's specification if we have a product
+        result["specification"] = f"{query.strip()}%"
     
     # Find grade
     for grade in GRADE_PREMIUMS:
@@ -415,6 +427,16 @@ I'm your AI quotation assistant, ready to help you get instant price quotes for 
 Looking forward to assisting you! 😊"""
     st.session_state.messages.append({"role": "assistant", "content": welcome_msg})
 
+# Initialize conversation context for building up quotation info
+if "context" not in st.session_state:
+    st.session_state.context = {
+        "product": None,
+        "specification": None,
+        "quantity": None,
+        "grade": None,
+        "city": None
+    }
+
 # Sidebar with product catalog
 with st.sidebar:
     st.header("📋 Product Catalog")
@@ -462,12 +484,20 @@ if prompt := st.chat_input("Ask for a quotation (e.g., 'Price for 50kg Ashwagand
             if greeting_response:
                 st.markdown(greeting_response)
                 st.session_state.messages.append({"role": "assistant", "content": greeting_response})
+                # Reset context on greeting
+                if any(g in prompt.lower() for g in ['hi', 'hello', 'hey']):
+                    st.session_state.context = {k: None for k in st.session_state.context}
             else:
-                # Parse the query for quotation
+                # Parse the query for quotation with conversation context
                 if GEMINI_API_KEY:
-                    parsed_data = parse_query_with_ai(prompt)
+                    parsed_data = parse_query_with_ai(prompt, st.session_state.context)
                 else:
-                    parsed_data = parse_query_simple(prompt)
+                    parsed_data = parse_query_simple(prompt, st.session_state.context)
+                
+                # Update context with new information
+                for key, value in parsed_data.items():
+                    if value is not None:
+                        st.session_state.context[key] = value
                 
                 # Check for missing info
                 missing_info_msg = handle_missing_info(parsed_data)
