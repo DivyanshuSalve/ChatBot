@@ -1,0 +1,55 @@
+DEMO QUERIES FOR ALCHEMY CHEMICALS PITCH
+=========================================
+
+BASIC DEMO (Copy & Paste These):
+--------------------------------
+
+1. Standard Pharmaceutical Order:
+Price for 50kg Ashwagandha extract 5% withanolides, pharmaceutical grade, delivery to Mumbai
+
+2. Bulk Cosmetic Order:
+I need 100kg of Curcumin 95% purity for cosmetic use, deliver to Delhi
+
+3. Large Pharma Order (Shows Volume Discount):
+Quote for 200kg Boswellia extract 85% boswellic acid, pharma grade, Bangalore delivery
+
+4. Small Food Grade Order:
+25kg Neem extract 5% azadirachtin, food grade, ship to Pune
+
+5. Local Delivery:
+Tulsi extract 5% ursolic acid, 75kg, pharmaceutical grade, local delivery
+
+
+ADVANCED DEMOS:
+--------------
+
+DEMO 1 - Show Concentration Impact on Price:
+• 50kg Ashwagandha 2.5% pharma Mumbai
+• 50kg Ashwagandha 5% pharma Mumbai  
+• 50kg Ashwagandha 10% pharma Mumbai
+
+DEMO 2 - Show Volume Discount Tiers:
+• 20kg Curcumin 95% pharma Delhi
+• 50kg Curcumin 95% pharma Delhi
+• 150kg Curcumin 95% pharma Delhi
+• 500kg Curcumin 95% pharma Delhi
+
+DEMO 3 - Show Grade Premiums:
+• 50kg Boswellia 65% food grade Mumbai
+• 50kg Boswellia 65% cosmetic Mumbai
+• 50kg Boswellia 65% pharmaceutical Mumbai
+
+
+CONVERSATIONAL QUERIES (More Natural):
+--------------------------------------
+• "I need some ashwagandha for pharma use"
+• "What's the price for curcumin?"
+• "Need bulk boswellia extract"
+• "Quote for neem extract"
+
+
+ERROR HANDLING DEMO:
+-------------------
+• "Price for ashwagandha" (Missing details - bot will ask)
+• "100kg product" (Missing product name)
+• "Deliver to Chennai" (Missing product and quantity)
