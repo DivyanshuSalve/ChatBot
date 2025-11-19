@@ -13,13 +13,26 @@ st.set_page_config(
 )
 
 # Initialize Gemini API (user will need to add their API key)
-# You can set this as an environment variable or directly here for the demo
-GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", None) or st.sidebar.text_input("Gemini API Key", type="password")
+# Try secrets first (for deployment), then sidebar input, then environment variable
+try:
+    GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", None)
+except:
+    GEMINI_API_KEY = None
+
+if not GEMINI_API_KEY:
+    GEMINI_API_KEY = st.sidebar.text_input("Gemini API Key (optional - uses fallback parser if empty)", type="password")
 
 model = None
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-pro')
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-pro')
+        st.sidebar.success("✅ Gemini AI Active")
+    except Exception as e:
+        st.sidebar.warning(f"⚠️ Gemini API error: Using fallback parser")
+        model = None
+else:
+    st.sidebar.info("ℹ️ Using fallback parser (add Gemini key for better AI)")
 
 # Product pricing data structure
 PRODUCTS = {
@@ -291,9 +304,10 @@ def is_greeting_or_general(query: str) -> Optional[str]:
     """Detect greetings and general queries, return friendly response"""
     query_lower = query.lower().strip()
     
-    # Greetings
+    # Greetings - check for exact matches or word boundaries to avoid false positives (like "Delhi" containing "hi")
     greetings = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening', 'namaste']
-    if any(greeting in query_lower for greeting in greetings):
+    # Use word boundaries to match only complete words
+    if any(re.search(rf'\b{re.escape(greeting)}\b', query_lower) for greeting in greetings):
         return """Hello! 👋 Welcome to Alchemy Chemicals!
 
 I'm your AI quotation assistant. I can help you get instant price quotes for our premium herbal extracts.
@@ -459,6 +473,22 @@ with st.sidebar:
     st.write("• Pharmaceutical: +20%")
     st.write("• Cosmetic: +10%")
     st.write("• Food Grade: 0%")
+    
+    # Show conversation context (what bot remembers)
+    st.divider()
+    st.header("🧠 Conversation Memory")
+    context_display = []
+    for key, value in st.session_state.context.items():
+        if value:
+            context_display.append(f"✅ {key.title()}: {value}")
+        else:
+            context_display.append(f"⬜ {key.title()}: —")
+    
+    for item in context_display:
+        st.write(item)
+    
+    if all(v is None for v in st.session_state.context.values()):
+        st.caption("Start chatting to build up quotation info!")
 
 # Main chat interface
 st.markdown("### 💬 Chat with our AI Assistant")
@@ -484,12 +514,12 @@ if prompt := st.chat_input("Ask for a quotation (e.g., 'Price for 50kg Ashwagand
             if greeting_response:
                 st.markdown(greeting_response)
                 st.session_state.messages.append({"role": "assistant", "content": greeting_response})
-                # Reset context on greeting
-                if any(g in prompt.lower() for g in ['hi', 'hello', 'hey']):
+                # Reset context on greeting (use word boundaries)
+                if any(re.search(rf'\b{g}\b', prompt.lower()) for g in ['hi', 'hello', 'hey']):
                     st.session_state.context = {k: None for k in st.session_state.context}
             else:
                 # Parse the query for quotation with conversation context
-                if GEMINI_API_KEY:
+                if model:  # Use model instead of GEMINI_API_KEY to ensure it's actually initialized
                     parsed_data = parse_query_with_ai(prompt, st.session_state.context)
                 else:
                     parsed_data = parse_query_simple(prompt, st.session_state.context)
