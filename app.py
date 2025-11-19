@@ -275,30 +275,123 @@ def format_quotation(quote: Dict) -> str:
 """
     return formatted
 
+def is_greeting_or_general(query: str) -> Optional[str]:
+    """Detect greetings and general queries, return friendly response"""
+    query_lower = query.lower().strip()
+    
+    # Greetings
+    greetings = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening', 'namaste']
+    if any(greeting in query_lower for greeting in greetings):
+        return """Hello! 👋 Welcome to Alchemy Chemicals!
+
+I'm your AI quotation assistant. I can help you get instant price quotes for our premium herbal extracts.
+
+**Our Products:**
+🌿 Ashwagandha Extract (2.5%, 5%, 10% withanolides)
+🌿 Boswellia Extract (65%, 85% boswellic acid)
+🌿 Curcumin Extract (90%, 95%, 98% purity)
+🌿 Neem Extract (1%, 5% azadirachtin)
+🌿 Tulsi Extract (2%, 5% ursolic acid)
+
+**Try asking me something like:**
+• "Price for 50kg Ashwagandha 5% pharmaceutical grade, Mumbai delivery"
+• "I need 100kg Curcumin 95% for cosmetic use, Delhi"
+• "Quote for Boswellia extract"
+
+How can I help you today? 😊"""
+    
+    # Help queries
+    help_terms = ['help', 'how to use', 'what can you do', 'how does this work']
+    if any(term in query_lower for term in help_terms):
+        return """I'm here to help! 🤝
+
+**How to get a quotation:**
+Just tell me what you need in plain English. Include:
+1. Product name (e.g., Ashwagandha, Curcumin)
+2. Specification (e.g., 5% withanolides, 95% purity)
+3. Quantity in kg
+4. Grade (pharmaceutical/cosmetic/food)
+5. Delivery city
+
+**Example:**
+"I need 50kg of Ashwagandha extract 5% withanolides, pharmaceutical grade, delivery to Mumbai"
+
+Don't worry about perfect formatting - I understand natural language! Try asking now. 💬"""
+    
+    # Thank you
+    thank_terms = ['thank', 'thanks', 'appreciate']
+    if any(term in query_lower for term in thank_terms):
+        return """You're very welcome! 😊
+
+Is there anything else you'd like to know?
+• Need a quote for a different product?
+• Want to compare different specifications?
+• Questions about pricing or delivery?
+
+I'm here to help!"""
+    
+    # Product inquiry without details
+    products_mentioned = [p for p in PRODUCTS.keys() if p in query_lower]
+    if products_mentioned and len(query_lower.split()) < 8:  # Short query
+        product = products_mentioned[0]
+        product_info = PRODUCTS[product]
+        specs = list(product_info["specifications"].keys())
+        
+        return f"""Great choice! I can help you with **{product_info['name']}**. 🌿
+
+**Available specifications:**
+{chr(10).join([f'• {spec} {product_info["unit"]}' for spec in specs])}
+
+**To get a quotation, please tell me:**
+1. Which specification? ({', '.join(specs)})
+2. How many kg do you need?
+3. Grade: pharmaceutical/cosmetic/food?
+4. Delivery city: Mumbai/Delhi/Bangalore/Pune/local?
+
+**Example:**
+"I need 50kg of {product_info['name']} {specs[0]} {product_info['unit']}, pharmaceutical grade, Mumbai delivery"
+
+What would you like? 😊"""
+    
+    return None
+
 def handle_missing_info(parsed_data: Dict) -> Optional[str]:
-    """Check for missing information and prompt user"""
+    """Check for missing information and prompt user in a friendly way"""
     missing = []
+    suggestions = []
     
     if not parsed_data.get("product"):
-        missing.append("product (ashwagandha/boswellia/curcumin/neem/tulsi)")
+        missing.append("**Product name**")
+        suggestions.append("Which product? (Ashwagandha/Boswellia/Curcumin/Neem/Tulsi)")
     
     if parsed_data.get("product") and not parsed_data.get("specification"):
         product = parsed_data["product"]
         if product in PRODUCTS:
             specs = list(PRODUCTS[product]["specifications"].keys())
-            missing.append(f"specification ({'/'.join(specs)})")
+            missing.append("**Specification**")
+            suggestions.append(f"Which concentration? ({'/'.join(specs)})")
     
     if not parsed_data.get("quantity"):
-        missing.append("quantity in kg")
+        missing.append("**Quantity**")
+        suggestions.append("How many kg do you need?")
     
     if not parsed_data.get("grade"):
-        missing.append("grade (pharmaceutical/cosmetic/food)")
+        missing.append("**Grade**")
+        suggestions.append("Which grade? (Pharmaceutical/Cosmetic/Food)")
     
     if not parsed_data.get("city"):
-        missing.append("delivery city")
+        missing.append("**Delivery city**")
+        suggestions.append("Where should we deliver? (Mumbai/Delhi/Bangalore/Pune/Ujjain)")
     
     if missing:
-        return f"Please provide the following information: {', '.join(missing)}"
+        return f"""I'd love to help! 😊 I just need a bit more information:
+
+{chr(10).join([f'{i+1}. {sugg}' for i, sugg in enumerate(suggestions)])}
+
+**Or try this format:**
+"[Quantity]kg [Product] [Spec]%, [Grade] grade, [City] delivery"
+
+What else can you tell me?"""
     
     return None
 
@@ -309,6 +402,18 @@ st.markdown("Get instant quotations for premium herbal extracts")
 # Initialize session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
+    # Add welcome message
+    welcome_msg = """👋 **Welcome to Alchemy Chemicals!**
+
+I'm your AI quotation assistant, ready to help you get instant price quotes for premium herbal extracts.
+
+**Just type naturally!** Try:
+• "Hi" - to see what I can do
+• "Price for 50kg Ashwagandha" - to get started
+• "Help" - for more guidance
+
+Looking forward to assisting you! 😊"""
+    st.session_state.messages.append({"role": "assistant", "content": welcome_msg})
 
 # Sidebar with product catalog
 with st.sidebar:
@@ -350,49 +455,60 @@ if prompt := st.chat_input("Ask for a quotation (e.g., 'Price for 50kg Ashwagand
     
     # Process query
     with st.chat_message("assistant"):
-        with st.spinner("Processing your request..."):
-            # Parse the query
-            if GEMINI_API_KEY:
-                parsed_data = parse_query_with_ai(prompt)
-            else:
-                parsed_data = parse_query_simple(prompt)
+        with st.spinner("Thinking..."):
+            # Check if it's a greeting or general query first
+            greeting_response = is_greeting_or_general(prompt)
             
-            # Check for missing info
-            missing_info_msg = handle_missing_info(parsed_data)
-            
-            if missing_info_msg:
-                st.warning(missing_info_msg)
-                st.session_state.messages.append({"role": "assistant", "content": missing_info_msg})
+            if greeting_response:
+                st.markdown(greeting_response)
+                st.session_state.messages.append({"role": "assistant", "content": greeting_response})
             else:
-                # All info available, calculate quotation
-                try:
-                    quotation = calculate_quotation(
-                        parsed_data["product"],
-                        parsed_data["specification"],
-                        parsed_data["quantity"],
-                        parsed_data["grade"],
-                        parsed_data["city"]
-                    )
-                    
-                    formatted_quote = format_quotation(quotation)
-                    st.markdown(formatted_quote)
-                    
-                    # Add to history
-                    st.session_state.messages.append({"role": "assistant", "content": formatted_quote})
-                    
-                    # Add download button for quotation
-                    if "error" not in quotation:
-                        st.download_button(
-                            label="📥 Download Quotation",
-                            data=formatted_quote,
-                            file_name=f"quotation_{parsed_data['product']}_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
-                            mime="text/plain"
+                # Parse the query for quotation
+                if GEMINI_API_KEY:
+                    parsed_data = parse_query_with_ai(prompt)
+                else:
+                    parsed_data = parse_query_simple(prompt)
+                
+                # Check for missing info
+                missing_info_msg = handle_missing_info(parsed_data)
+                
+                if missing_info_msg:
+                    st.info(missing_info_msg)
+                    st.session_state.messages.append({"role": "assistant", "content": missing_info_msg})
+                else:
+                    # All info available, calculate quotation
+                    try:
+                        quotation = calculate_quotation(
+                            parsed_data["product"],
+                            parsed_data["specification"],
+                            parsed_data["quantity"],
+                            parsed_data["grade"],
+                            parsed_data["city"]
                         )
                         
-                except Exception as e:
-                    error_msg = f"Error calculating quotation: {str(e)}"
-                    st.error(error_msg)
-                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
+                        formatted_quote = format_quotation(quotation)
+                        st.markdown(formatted_quote)
+                        
+                        # Add to history
+                        st.session_state.messages.append({"role": "assistant", "content": formatted_quote})
+                        
+                        # Add download button for quotation
+                        if "error" not in quotation:
+                            st.download_button(
+                                label="📥 Download Quotation",
+                                data=formatted_quote,
+                                file_name=f"quotation_{parsed_data['product']}_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                                mime="text/plain"
+                            )
+                            
+                            # Add friendly follow-up
+                            follow_up = "\n\n---\n\n💡 **Need something else?**\n• Modify quantity or specification?\n• Get a quote for another product?\n• Compare different options?\n\nJust ask!"
+                            st.markdown(follow_up)
+                            
+                    except Exception as e:
+                        error_msg = f"Oops! Something went wrong: {str(e)}\n\nPlease try again or rephrase your request. I'm here to help! 😊"
+                        st.error(error_msg)
+                        st.session_state.messages.append({"role": "assistant", "content": error_msg})
 
 # Example queries section
 with st.expander("📝 Example Queries"):
