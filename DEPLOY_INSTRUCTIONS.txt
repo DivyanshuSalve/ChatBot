@@ -1,0 +1,28 @@
+QUICK DEPLOYMENT STEPS
+======================
+
+After creating your GitHub repository, run these commands:
+
+1. Link to your GitHub repo (replace YOUR_USERNAME and REPO_NAME):
+   git remote add origin https://github.com/YOUR_USERNAME/REPO_NAME.git
+
+2. Push the code:
+   git branch -M main
+   git push -u origin main
+
+3. Deploy on Streamlit Cloud:
+   - Go to: https://share.streamlit.io/
+   - Click "New app"
+   - Select your GitHub repository
+   - Main file path: app.py
+   - Click "Deploy"
+
+4. ADD YOUR GEMINI API KEY:
+   - In Streamlit Cloud dashboard, click "Settings" → "Secrets"
+   - Add this line:
+     GEMINI_API_KEY = "AIzaSyANaxNxRTVgClU0Jz3W3ONCioejCe8jlWc"
+   - Click "Save"
+
+Your app will be live at: https://YOUR_APP_NAME.streamlit.app
+
+ALTERNATIVE: If you want me to run the git commands, just tell me your GitHub username and repo name!
